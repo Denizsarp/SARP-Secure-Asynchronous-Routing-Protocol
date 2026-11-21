@@ -44,6 +44,9 @@ size_t serialize_packet(const Packet *packet, uint8_t *buffer, size_t buffer_siz
     if(packet == NULL || buffer == NULL){
         return 0;
     }
+    if(buffer_size < 8){
+        return 0;
+    }
     
     
 
