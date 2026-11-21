@@ -15,7 +15,7 @@ int main(void){
     return 0;
 }
 
-
+//funcs
 Packet packet_creator(void){
     //empty packet creation
     Packet packet = {0};
