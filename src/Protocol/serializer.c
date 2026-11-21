@@ -7,12 +7,6 @@
 
 
 
-int main(void){
-
-    return 0;
-}
-
-
 uint8_t *create_buffer(const Packet *packet, size_t *buffer_size){
     if(packet == NULL || buffer_size == NULL){
         return NULL;

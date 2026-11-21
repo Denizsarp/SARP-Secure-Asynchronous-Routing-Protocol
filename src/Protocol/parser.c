@@ -10,10 +10,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 
-int main(void){
-
-    return 0;
-}
 
 //funcs
 Packet packet_creator(void){
@@ -45,9 +41,7 @@ size_t packet_parser(Packet *packet, const uint8_t *buffer, size_t buffer_size){
         //parsing all bytes
         if(index_counter == 0){
             uint8_t current_byte = buffer[index_counter];
-            if(current_byte == NULL){
-                return 0;
-            }
+            
             packet->header.version = current_byte;
 
             read_amnt++;
@@ -56,9 +50,7 @@ size_t packet_parser(Packet *packet, const uint8_t *buffer, size_t buffer_size){
         }
         if(index_counter == 1){
             uint8_t current_byte = buffer[index_counter];
-            if(current_byte == NULL){
-                return 0;
-            }
+            
             packet->header.type = current_byte;
 
             read_amnt++;
