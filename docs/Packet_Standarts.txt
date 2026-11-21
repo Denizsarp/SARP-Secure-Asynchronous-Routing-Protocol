@@ -1,0 +1,9 @@
+This file contains packet standartizaiton for unification of protocols among devices.
+
+v0.1 : packet format will contain header, payload and trailer(in order to notify that message has ended.)
+first ever communication will be carried on UDP and using Internet. 
+
+V0.2 : Packet will begin to carried with SarProtocol unification rules.
+
+
+TO BE CONTINUED...
