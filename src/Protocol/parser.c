@@ -11,6 +11,9 @@
 #include <stddef.h>
 
 
+#define MAX_PAYLOAD_SIZE 1200
+
+
 //funcs
 Packet packet_creator(void){
     //empty packet creation
@@ -19,18 +22,22 @@ Packet packet_creator(void){
 }
 
 
-size_t packet_parser(Packet *packet, const uint8_t *buffer, size_t buffer_size){
+ssize_t packet_parser(Packet *packet, const uint8_t *buffer, size_t buffer_size){
     //this function will read buffer byte by byte and fill the packet format properly.
     //The function returns an size_t which represents number of bytes read.
 
     //NULL checks
     if(buffer == NULL || packet == NULL){
-        return 0;
+        return -1;
     }
 
     //size check
     if(buffer_size < 8){
-        return 0;
+        return -1;
+    }
+
+    if(buffer_size > 1208){
+        return -1;
     }
 
 

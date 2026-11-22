@@ -8,8 +8,8 @@
 //signatures
 Packet packet_creator(void);
 
-size_t packet_parser(
-    Packet packet,
+ssize_t packet_parser(
+    Packet *packet,
     const uint8_t *buffer,
     size_t buffer_size
 );

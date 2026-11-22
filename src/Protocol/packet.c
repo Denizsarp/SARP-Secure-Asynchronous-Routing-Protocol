@@ -19,7 +19,7 @@ typedef struct{
 //packet = header + payload length byte
 typedef struct{
     Header header;
-    const uint8_t payload[128];
+    const uint8_t *payload;
 }Packet;
 
 

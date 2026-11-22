@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stddef.h>
 
+#define MAX_PAYLOAD_SIZE 1200
+
 
 
 
@@ -13,6 +15,9 @@ uint8_t *create_buffer(const Packet *packet, size_t *buffer_size){
     }
 
     size_t payload_size = packet->header.payload_length;
+    if(payload_size > MAX_PAYLOAD_SIZE){
+        return -1;
+    }
     size_t header_size = 8;
 
     size_t packet_total_size = header_size + payload_size;

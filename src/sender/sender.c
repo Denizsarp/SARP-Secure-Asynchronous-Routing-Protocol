@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -9,7 +10,9 @@
 #include "serializer.h"
 #include "packet.h"
 
+
 #define DEST_PORT 50000
+#define MAX_PAYLOAD_SIZE 1200
 
 
 
@@ -27,11 +30,6 @@ int welcomer(void){
     return 1;
 }
 
-int create_socket(void){
-
-}
-
-
 
 int main(void){
     struct sockaddr_in sendaddr;
@@ -48,18 +46,29 @@ int main(void){
     //sendaddr config
     sendaddr.sin_family = AF_INET;
     sendaddr.sin_port = htons(DEST_PORT);
-    sendaddr.sin_addr.s_addr = INADDR_ANY;
+    
+    struct in_addr * sin_addr_ptr = &sendaddr.sin_addr;
+    
 
     
-    char reciever_ip[16];
+    char receiver_ip[16];
     welcomer();
-    scanf("%s", reciever_ip);
+    if(scanf("%15s", receiver_ip) != 1){
+        close(sockfd);
+        return 1;
+    }
 
-    int sequence_number = 0;
-    while(true){
+    if(inet_pton(AF_INET, receiver_ip, sin_addr_ptr) != 1){
+        printf("Invalid IP address!\n");
+        close(sockfd);
+        return 1;
+    }
+
+    uint32_t sequence_number = 0;
+    while(1){
         
         //taking string input
-        char message[1000];
+        char message[1200];
         printf("===================================\n");
         printf("Enter the message you want to sent(type 'terminate to exit'): ");
 
@@ -72,6 +81,10 @@ int main(void){
         
         
         size_t message_size = strlen(message);
+        if(message_size > 1200){
+            printf("Message is too long!");
+            continue;
+        }
 
         //packet initilization
         Packet packet = {0};
@@ -95,17 +108,28 @@ int main(void){
         written_amnt = serialize_packet(&packet, buffer, buffer_size);
         //buffer serialized with pack now.
 
-        sendto(
+        ssize_t send_bytes;
+
+        send_bytes = sendto(
             sockfd,
             buffer,
-            buffer_size,
+            written_amnt,
             0,
             (struct sockaddr *)&sendaddr,
             sizeof(sendaddr)
         );
-        printf("Message has been sent successfully!\n");
-        continue;
 
+        if(send_bytes < 0){
+            printf("Message could not sent!\n");
+            free(buffer);
+            close(sockfd);
+            return 1;
+        }
+        else{
+            printf("Message has been sent successfully!\n");
+            free(buffer);
+            continue;
+        }
         
     }
     close(sockfd);
