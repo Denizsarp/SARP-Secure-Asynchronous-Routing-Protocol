@@ -1,0 +1,1 @@
+General node for sending and recieving message. Providing full-duplex structure.
