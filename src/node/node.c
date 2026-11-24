@@ -7,6 +7,9 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <pthread.h>
+#include <stdatomic.h>
+#include <poll.h>
 #include "parser.h"
 #include "packet.h"
 #include "serializer.h"
@@ -16,19 +19,19 @@
 
 
 
-
-typedef struct Node{
+//node struct which holds client and local socket addresses.
+typedef struct{
     int sockfd;
     struct sockaddr_in local_addr;
     struct sockaddr_in remote_addr;
     uint32_t sequence_number;
+    atomic_bool running;
 }Node;
-
 
 
 void message_displayer(const Packet *packet){
     size_t message_len = packet->header.payload_length;
-    if (message_len > 1200){
+    if (message_len > MAX_PAYLOAD_SIZE){
         printf("display error!\n");
         return;
     }
@@ -58,6 +61,12 @@ int node_init(Node *node){
         close(sockfd);
         return -1;
     }
+
+    int ch;
+    while((ch = getchar()) != '\n' && ch != EOF){
+        continue;
+    }
+
 
     struct sockaddr_in sendaddr;
     struct sockaddr_in recaddr;
@@ -98,30 +107,34 @@ int node_init(Node *node){
     node->sockfd = sockfd;
     node->local_addr = recaddr;
     node->remote_addr = sendaddr;
+    atomic_init(&node->running, 1);
 
     return 0;
 
 
 }
 //welcomer func
-int welcomer(void){
+int welcomer(Node *node){
     printf("======================================\n");
     printf("Welcome to SARP communication tool!\n");
-    Node node = {0};
-    Node *node_ptr = &node;
 
 
     int node_t;
-    if((node_t = node_init(node_ptr)) < 0){
+    if((node_t = node_init(node)) < 0){
         printf("Fatal Error!");
         return -1;
     }
-    return 1;
+    return 0;
 }
 
 
 //sender func
 ssize_t node_send(Node *node, const uint8_t *message, size_t message_length){
+
+    if(message_length > MAX_PAYLOAD_SIZE){
+        return -1;
+    }
+
     Packet packet = {0};
     Packet *pack_ptr = &packet;
 
@@ -158,7 +171,7 @@ ssize_t node_send(Node *node, const uint8_t *message, size_t message_length){
         buffer,
         written_amnt,
         0,
-        (struct sockaddr_in *)&node->remote_addr,
+        (struct sockaddr *)&node->remote_addr,
         sizeof(*remote_addr_ptr)
     );
 
@@ -228,6 +241,74 @@ ssize_t node_recieve(Node *node){
 }
 
 
+int node_close(Node *node){
+
+    if(node == NULL){
+        return -1;
+    }
+    if(node->sockfd < 0){
+        return -1;
+    }
+
+
+    int close_t;
+    close_t = close(node->sockfd);
+
+    if(close_t < 0){
+        return -1;
+    }
+
+    node->sockfd = -1;
+    return 0;
+}
+
+
+
+//thread routine for send message
+void *sender_work(void *args){
+    Node *node = (struct Node *)args;
+    if(node->running != 1){
+        return NULL;
+    }
+
+    if(node->sockfd < 0){
+        printf("Invalid socket value!\n");
+        return NULL;
+    }
+
+    char message[1200];
+
+    while(1){
+        printf("Enter the message: ");
+
+        if(fgets(message, sizeof(message), stdin) == NULL){
+            atomic_store(&node->running, false);
+            break;
+        }
+
+        size_t index_t = strcspn(message, "\n");
+        message[index_t] = '\0'; //null terminate
+
+        if(strcmp(message, "exit") == 0){
+            atomic_store(&node->running, false);
+            break;
+        }
+
+        size_t message_len = strlen(message);
+
+        if(message_len == 0){
+            continue;
+        }
+        
+        ssize_t send_bytes;
+        send_bytes = node_send(node, message, message_len);
+
+        if(send_bytes < 0){
+            printf("Message could not be sent!\n");
+        }
+    }
+    return NULL;
+}
 
 
 
@@ -237,50 +318,124 @@ ssize_t node_recieve(Node *node){
 
 
 
+//thread routine for recieve message
+void *reciever_work(void *args){
+    Node *node = (struct Node *)args;
+
+    if(!atomic_load(&node->running)){
+        return NULL;
+    }
+
+    if(node->sockfd < 0){
+        printf("Invalid socket value!\n");
+        atomic_store(&node->running, false);
+        return NULL;
+    }
+
+    struct pollfd pfd;
+    pfd.fd = node->sockfd;
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+
+    struct pollfd *poll_ptr = &pfd;
+
+    ssize_t recieved_bytes;
+
+    while(atomic_load(&node->running)){
+        int p_result = poll(poll_ptr, 1, 500);
+
+        if(p_result < 0){
+            perror("poll");
+            atomic_store(&node->running, false);
+            break;
+        }
+
+        if(p_result == 0){
+            continue;
+        }
+
+        if(pfd.revents & POLLIN){
+            node_recieve(node);
+        }
+    }
+    return NULL;
 
 
 
+    
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+}
 
 
 
 int main(void){
+    Node node = {0};
+    node.sockfd = -1;
+
     int welcome_t;
-    if((welcome_t = welcomer()) < 0){
+    if((welcome_t = welcomer(&node)) < 0){
+        return 1;
+    }
+
+    if(node.sockfd < 0){
+        fprintf(stderr, "Node initialization failed!\n");
+        return 1;
+    }
+
+    pthread_t sender_thread;
+    pthread_t reciever_thread;
+
+    int sender_create_t;
+    int reciever_create_t;
+
+    //create threads
+
+    reciever_create_t = pthread_create(&reciever_thread, NULL, reciever_work, &node);
+    if(reciever_create_t != 0){
+        printf("Error during reciever thread creation\n");
+        node_close(&node);
+        return 1;
+    }
+
+
+    sender_create_t = pthread_create(&sender_thread, NULL, sender_work, &node);
+    if(sender_create_t != 0){
+        printf("Error during sender thread creation!\n");
+        atomic_store(&node.running, false);
+
+        pthread_join(reciever_thread, NULL);
+        node_close(&node);
+        return 1;
+    }
+
+
+
+
+
+    //wait until threads finish.
+
+    int sender_join_t;
+    int reciever_join_t;
+
+    sender_join_t = pthread_join(sender_thread, NULL);
+
+    reciever_join_t = pthread_join(reciever_thread, NULL);
+
+    if(sender_join_t != 0){
+        printf("Sender thread could not joint!");
+        return 1;
+    }
+    if(reciever_create_t != 0){
+        printf("Reciever thread could not joint!");
         return 1;
     }
     
-    while(1){
-        char message[1200];
-        printf("Enter the message you want to send: ");
+    int close_t;
 
+    if((close_t = node_close(&node)) < 0){
+        printf("Node could not be closed!\n");
+        return 1;
     }
-
-
 
     return 0;
 }

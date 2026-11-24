@@ -6,4 +6,7 @@ first ever communication will be carried on UDP and using Internet.
 V0.2 : Packet will begin to carried with SarProtocol unification rules.
 
 
+V1.0 : Clients done!
+
+
 TO BE CONTINUED...
